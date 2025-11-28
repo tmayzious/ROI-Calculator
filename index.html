@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Highspot AI ROI Calculator</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* General Styles */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f7f9fc;
+            /* CRUCIAL FIX: Removed fixed height (like 100vh) */
+        }
+        
+        /* Ensures the React container takes the full vertical space */
+        #root {
+            width: 100%;
+            height: 100%; 
+        }
+
+        .roi-calculator {
+            max-width: 650px;
+            margin: 0 auto;
+            padding: 30px;
+            border: 1px solid #e0e6f0;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.05);
+            background: #ffffff;
+        }
+
+        /* Header and Description */
+        h2 { 
+            color: #007bff; 
+            border-bottom: 3px solid #007bff; 
+            padding-bottom: 10px; 
+            margin-top: 0;
+            font-size: 1.8em;
+            text-align: center;
+        }
+        .description { 
+            margin-bottom: 30px; 
+            color: #555; 
+            font-style: italic; 
+            text-align: center;
+        }
+        hr {
+            border: 0;
+            border-top: 1px solid #eee;
+            margin: 30px 0;
+        }
+
+        /* Slider Input Styles */
+        .slider-input-group {
+            margin-bottom: 25px;
+            padding: 10px 0;
+            border-bottom: 1px dashed #e0e0e0;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #333;
+        }
+        .slider-label span:last-child {
+            color: #007bff;
+            font-size: 1.1em;
+        }
+        .slider {
+            width: 100%;
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+            margin-top: 5px;
+            outline: none;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #007bff;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+        }
+        .slider-min-max {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85em;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        /* Results Section */
+        .results { 
+            text-align: center; 
+            padding: 30px 20px; 
+            background: #f0f8ff; /* Light blue background */
+            border: 1px solid #007bff;
+            border-radius: 8px; 
+        }
+        h3 {
+            color: #007bff;
+            margin-bottom: 10px;
+            font-size: 1.4em;
+        }
+        .summary-table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+        }
+        .summary-table td {
+            padding: 10px 0;
+            font-size: 1.1em;
+            text-align: left;
+            border-bottom: 1px dashed #e0e6f0;
+        }
+        .summary-table td:last-child {
+            text-align: right;
+            font-weight: 600;
+        }
+        .net-roi-row td {
+            font-size: 1.4em !important;
+            font-weight: 700 !important;
+            padding: 15px 0 !important;
+            border-bottom: none;
+        }
+        .net-roi-row td:first-child {
+            color: #007bff;
+        }
+        .net-roi-row td:last-child {
+            color: #28a745; /* Green for profit/positive ROI */
+        }
+        .breakdown { 
+            font-size: 0.95em; 
+            color: #666; 
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo } = React;
+        
+        // --- Constants ---
+        const WORKING_WEEKS_PER_YEAR = 50;
+
+        // --- Helper Functions ---
+        const formatCurrency = (amount) => {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+            }).format(amount);
+        };
+
+        // --- Reusable Slider Component ---
+        const SliderInput = ({ label, value, onChange, min, max, step, unit }) => {
+            const handleChange = (event) => {
+                onChange(Number(event.target.value));
+            };
+
+            // Format cost values (which can be large) for the label
+            const displayValue = unit === '$' && value > 1000 ? formatCurrency(value) : `${unit}${value}`;
+
+            return (
+                <div className="slider-input-group">
+                    <label className="slider-label">
+                        <span>{label}</span>
+                        <span>{displayValue}</span>
+                    </label>
+                    <input
+                        type="range"
+                        min={min}
+                        max={max}
+                        step={step}
+                        value={value}
+                        onChange={handleChange}
+                        className="slider"
+                    />
+                    <div className="slider-min-max">
+                        <span>{unit === '$' && min > 1000 ? formatCurrency(min) : `${unit}${min}`}</span>
+                        <span>{unit === '$' && max > 1000 ? formatCurrency(max) : `${unit}${max}`}</span>
+                    </div>
+                </div>
+            );
+        };
+
+
+        // --- Main ROI Calculator Component ---
+        const ROICalculator = () => {
+            // Define State for the Sliders
+            const [employeeCount, setEmployeeCount] = useState(100);
+            const [hoursSavedPerWeek, setHoursSavedPerWeek] = useState(2);
+            const [hourlyAverageCost, setHourlyAverageCost] = useState(45);
+            // New State for the cost of the solution
+            const [annualSolutionCost, setAnnualSolutionCost] = useState(50000); 
+
+            // Core Calculation
+            const grossAnnualSavings = useMemo(() => {
+                // Formula: Employees * Hours Saved * Hourly Cost * Weeks per Year
+                return (
+                    employeeCount *
+                    hoursSavedPerWeek *
+                    hourlyAverageCost *
+                    WORKING_WEEKS_PER_YEAR
+                );
+            }, [employeeCount, hoursSavedPerWeek, hourlyAverageCost]);
+
+            const netAnnualROI = grossAnnualSavings - annualSolutionCost;
+
+            // --- Render ---
+            return (
+                <div className="roi-calculator">
+                    <h2>🧠 Highspot AI ROI Calculator</h2>
+                    <p className="description">
+                        Estimate the **net annual return** after factoring in the cost of the AI solution that enables time savings.
+                    </p>
+
+                    {/* Sliders Section */}
+                    <div className="sliders-container">
+                        <SliderInput
+                            label="Employee Count (Sales/Marketing)"
+                            value={employeeCount}
+                            onChange={setEmployeeCount}
+                            min={10}
+                            max={500}
+                            step={10}
+                            unit=""
+                        />
+
+                        <SliderInput
+                            label="Hours per Employee Saved per Week"
+                            value={hoursSavedPerWeek}
+                            onChange={setHoursSavedPerWeek}
+                            min={0.5}
+                            max={10}
+                            step={0.5}
+                            unit="hrs "
+                        />
+
+                        <SliderInput
+                            label="Average Total Hourly Employee Cost (Fully Loaded)"
+                            value={hourlyAverageCost}
+                            onChange={setHourlyAverageCost}
+                            min={25}
+                            max={120}
+                            step={5}
+                            unit="$"
+                        />
+                        
+                        <SliderInput
+                            label="Annual Cost of AI Solution"
+                            value={annualSolutionCost}
+                            onChange={setAnnualSolutionCost}
+                            min={10000}
+                            max={200000}
+                            step={10000}
+                            unit="$"
+                        />
+                    </div>
+
+                    <hr />
+
+                    {/* Results Section */}
+                    <div className="results">
+                        <h3>📊 Annual Financial Summary</h3>
+                        
+                        <table className="summary-table">
+                            <tbody>
+                                <tr>
+                                    <td>Total Annual Value Gained (Gross Savings)</td>
+                                    <td>{formatCurrency(grossAnnualSavings)}</td>
+                                </tr>
+                                <tr>
+                                    <td>Annual AI Solution Cost</td>
+                                    <td>-{formatCurrency(annualSolutionCost)}</td>
+                                </tr>
+                                <tr className="net-roi-row">
+                                    <td>Net Annual ROI (Profit/Loss)</td>
+                                    <td style={{color: netAnnualROI >= 0 ? '#28a745' : '#dc3545'}}>
+                                        {formatCurrency(netAnnualROI)}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <p className="breakdown">
+                            The time savings translate to ${formatCurrency(grossAnnualSavings)} in potential value, resulting in a **{netAnnualROI >= 0 ? 'Net Profit' : 'Net Loss'}** of **{formatCurrency(netAnnualROI)}** after costs.
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        // 6. Mount the Application to the DOM
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<ROICalculator />);
+    </script>
+</body>
+</html>
